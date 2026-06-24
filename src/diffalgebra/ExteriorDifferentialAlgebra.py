@@ -1,5 +1,5 @@
-from PolynomialAlgebra import GeneralAlgebra, GeneralMonomial, GeneralPolynomial
-from DifferentialAlgebra import DiffAlgebra, DiffPolynomial
+from .PolynomialAlgebra import GeneralAlgebra, GeneralMonomial, GeneralPolynomial
+from .DifferentialAlgebra import DiffAlgebra, DiffPolynomial
 
 
 class ExteriorDiffAlgebra(GeneralAlgebra):

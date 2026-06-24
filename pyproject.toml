@@ -1,0 +1,8 @@
+[project]
+name = "diffalgebra"
+authors = [{name = "Mikhail Troshkin", email = "tr2mikh@gmail.com"}]
+version = "0.1.0"
+description = "A package for symbolic computations in free differential algebras"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []

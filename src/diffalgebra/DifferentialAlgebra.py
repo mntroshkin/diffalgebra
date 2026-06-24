@@ -1,4 +1,4 @@
-from PolynomialAlgebra import GeneralAlgebra, GeneralMonomial, GeneralPolynomial, Algebra, Polynomial
+from .PolynomialAlgebra import GeneralAlgebra, GeneralMonomial, GeneralPolynomial, Algebra, Polynomial
 import math
 
 

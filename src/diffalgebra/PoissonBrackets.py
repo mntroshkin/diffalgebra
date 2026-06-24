@@ -1,5 +1,5 @@
-from DifferentialAlgebra import DiffAlgebra
-from ExteriorDifferentialAlgebra import ExteriorDiffAlgebra
+from .DifferentialAlgebra import DiffAlgebra
+from .ExteriorDifferentialAlgebra import ExteriorDiffAlgebra
 
 
 class MultivectorAlgebra(ExteriorDiffAlgebra):
