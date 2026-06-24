@@ -1,7 +1,8 @@
-from .constant_ring import ConstantRing
-
+import math
 from fractions import Fraction
 from typing import Sequence, Optional
+
+from .constant_ring import ConstantRing
 
 type Rational = int | Fraction
 
@@ -92,7 +93,6 @@ class ConstantPolynomial:
                 other = self.ring.promote(other)
             product_terms = [term1 * term2 for term1 in self.terms for term2 in other.terms]
             return ConstantPolynomial(self.ring, terms=product_terms)
-
         else:
             return NotImplemented
         
@@ -125,14 +125,26 @@ class ConstantPolynomial:
             return self.terms == other.terms
         raise TypeError
     
+    def _common_factor_quotient(self) -> tuple[int, ConstantPolynomial]:
+        if all(term.coefficient.is_integer() for term in self.terms):
+            gcd = math.gcd(*(term.coefficient.numerator for term in self.terms))
+            quotient = Fraction(1, gcd) * self
+            return gcd, quotient
+        else:
+            return 1, self
+    
     def __str__(self) -> str:
         if len(self.terms) == 0:
             return "0"
+        
         terms_str = [str(term) for term in self.terms]
         for i in range(1, len(self.terms)):
             if terms_str[i][0] != "-":
                 terms_str[i] = "+" + terms_str[i]
         return ''.join(terms_str)
+    
+    def parenthesis_str(self) -> str:
+        return f"({str(self)})" if len(self.terms) > 1 else str(self)
 
 
 class ConstantPolyRing(ConstantRing[ConstantPolynomial]):
@@ -151,7 +163,7 @@ class ConstantPolyRing(ConstantRing[ConstantPolynomial]):
             self.constants.append(const_name)
 
     def is_element(self, expression) -> bool:
-        if isinstance(expression, int) or isinstance(expression, Fraction):
+        if isinstance(expression, (int, Fraction)):
             return True
         elif isinstance(expression, ConstantPolynomial) and expression.ring == self:
             return True
@@ -163,12 +175,12 @@ class ConstantPolyRing(ConstantRing[ConstantPolynomial]):
             raise TypeError(f"Expression {expression} is not element of {self.ring_name} and can't be promoted")
         if isinstance(expression, ConstantPolynomial):
             return expression
-        elif isinstance(expression, int) or isinstance(expression, Fraction):
+        elif isinstance(expression, (int, Fraction)):
             monomial = ConstantMonomial(ring=self, exponents=None, coefficient=expression)
             return ConstantPolynomial(ring=self, terms=[monomial])
         raise TypeError
     
-    def get_constant(self, const_name):
+    def get_constant(self, const_name: str):
         if const_name not in self.constants:
             raise ValueError
         exponents = tuple(1 if const_name == const else 0 for const in self.constants)
