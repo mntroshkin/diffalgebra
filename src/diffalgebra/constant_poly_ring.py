@@ -1,4 +1,3 @@
-import math
 from fractions import Fraction
 from typing import Sequence, Optional
 
@@ -115,8 +114,11 @@ class ConstantPolynomial:
             raise ValueError
         if other == 0:
             return 1
+        if other % 2 == 0:
+            sqrt = self ** (other // 2)
+            return sqrt * sqrt
         else:
-            return self * (self ** (other - 1))
+            return self * self ** (other - 1)
             
     def __eq__(self, other):
         if self.ring.is_element(other):
@@ -125,18 +127,9 @@ class ConstantPolynomial:
             return self.terms == other.terms
         raise TypeError
     
-    def _common_factor_quotient(self) -> tuple[int, ConstantPolynomial]:
-        if all(term.coefficient.is_integer() for term in self.terms):
-            gcd = math.gcd(*(term.coefficient.numerator for term in self.terms))
-            quotient = Fraction(1, gcd) * self
-            return gcd, quotient
-        else:
-            return 1, self
-    
     def __str__(self) -> str:
         if len(self.terms) == 0:
             return "0"
-        
         terms_str = [str(term) for term in self.terms]
         for i in range(1, len(self.terms)):
             if terms_str[i][0] != "-":

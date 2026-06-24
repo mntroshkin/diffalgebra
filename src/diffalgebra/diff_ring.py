@@ -205,6 +205,7 @@ def diff(expression: ConstantCoefficient | DifferentialPolynomial, order: int = 
         else:
             return expression.diff(order)
 
+
 class DifferentialRing:
     ring_name: str
     base_ring: ConstantRing[ConstantCoefficient]
@@ -212,7 +213,7 @@ class DifferentialRing:
 
     def __init__(self, functions: list[str], base_ring: ConstantRing = QQ, ring_name: Optional[str] = None):
         self.base_ring = base_ring
-        self.ring_name = ring_name if ring_name else "anonymous differential ring ring"
+        self.ring_name = ring_name if ring_name else "anonymous differential ring"
         
         self.functions = []
         for func_name in functions:

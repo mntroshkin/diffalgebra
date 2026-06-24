@@ -34,7 +34,7 @@ class Rationals(ConstantRing[Rational]):
             raise TypeError(f"Expression {expression} is not element of {self.ring_name} and can't be promoted")
         return Fraction(expression)
     
-    def get_constant(self, const_name) -> int | Fraction:
+    def get_constant(self, const_name):
         raise ValueError
     
 QQ = Rationals()
