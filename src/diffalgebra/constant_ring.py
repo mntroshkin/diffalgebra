@@ -40,7 +40,7 @@ class ConstantMonomial:
     def __eq__(self, other) -> bool:
         if isinstance(other, ConstantMonomial):
             return (self._ring, self._exponents, self._coefficient) == (other._ring, other._exponents, other._coefficient)
-        raise TypeError
+        return False
     
     def __str__(self) -> str:
         if self._exponents == tuple(0 for const_name in self._ring._constants):
@@ -184,15 +184,15 @@ class ConstantRing():
     _constants: list[str]
 
     def __init__(self, constants: Sequence[str], ring_name: Optional[str] = None):
-        self._ring_name = ring_name if ring_name else "anonymous constant ring"
-
         self._constants = []
         for const_name in constants:
             if not const_name:
-                raise ValueError(f"Error defining {self._ring_name}: Empty constant names are not allowed")
+                raise SymbolNameError(f"Empty constant names are not allowed")
             if const_name in self._constants:
-                raise ValueError(f"Error defining {self._ring_name}: Repeating constant names are not allowed")
+                raise SymbolNameError(f"Repeating constant names are not allowed")
             self._constants.append(const_name)
+        ring_description = f"QQ[{', '.join(self._constants)}]"
+        self._ring_name = f"{ring_name} = {ring_description}" if ring_name else ring_description
 
     def is_element(self, expression) -> bool:
         if isinstance(expression, (int, Fraction)):
@@ -204,7 +204,7 @@ class ConstantRing():
 
     def promote(self, expression) -> ConstantPolynomial:
         if not self.is_element(expression):
-            raise TypeError(f"Expression {expression} is not element of {self._ring_name} and can't be promoted")
+            raise TypeError(f"Expression {expression} is not an element of {self._ring_name} and can't be promoted")
         if isinstance(expression, ConstantPolynomial):
             return expression
         elif isinstance(expression, (int, Fraction)):
@@ -214,5 +214,12 @@ class ConstantRing():
     
     def constant(self, const_name: str) -> ConstantVariable:
         return ConstantVariable(ring=self, const_name=const_name)
-    
+
+
+class ConstantPolyRing(ConstantRing):
+    def __init__(self, constants: Sequence[str], ring_name: str | None = None):
+        if not constants:
+            raise SymbolNameError(f"The list of ring generators must be non-empty")
+        super().__init__(constants, ring_name)
+
 QQ = ConstantRing(constants=[], ring_name="QQ")

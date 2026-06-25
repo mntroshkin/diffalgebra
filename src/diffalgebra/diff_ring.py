@@ -12,7 +12,6 @@ type Variable = ConstantVariable | FuncVariable
 type DiffFactor = tuple[int, int]
 type DiffFactors = list[DiffFactor]
 
-
 class DifferentialMonomial:
     _ring: DifferentialRing
     _factors: tuple[DiffFactors, ...]
@@ -55,7 +54,7 @@ class DifferentialMonomial:
     def __eq__(self, other) -> bool:
         if isinstance(other, DifferentialMonomial):
             return (self._ring, self._factors, self._coefficient) == (other._ring, other._factors, other._coefficient)
-        raise TypeError
+        return False
     
     def __str__(self) -> str:
         if self._factors == tuple([] for func_name in self._ring._functions):
@@ -326,7 +325,7 @@ class DifferentialRing:
     
     def promote(self, expression) -> DifferentialPolynomial:
         if not self.is_element(expression):
-            raise TypeError(f"Expression {expression} is not element of {self._ring_name} and can't be promoted")
+            raise TypeError(f"Expression {expression} is not an element of {self._ring_name} and can't be promoted")
         if isinstance(expression, DifferentialPolynomial):
             return expression
         if isinstance(expression, (int, Fraction, ConstantPolynomial)):
