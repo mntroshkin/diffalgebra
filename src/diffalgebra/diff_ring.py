@@ -2,11 +2,10 @@ from typing import Optional, Sequence
 from fractions import Fraction
 
 from .exceptions import RingMismatchError, SymbolNameError
-from .constant_ring import ConstantRing, ConstantPolynomial, ConstantVariable, QQ
+from .constant_ring import ConstantRing, ConstantPolynomial, ConstantGenerator, QQ, Constant
 
-type Constant = int | Fraction | ConstantPolynomial
 type Expression = int | Fraction | ConstantPolynomial | DifferentialPolynomial
-type Variable = ConstantVariable | FuncVariable
+type Generator = ConstantGenerator | FuncGenerator
 
 
 type DiffFactor = tuple[int, int]
@@ -39,12 +38,12 @@ class DifferentialMonomial:
         self._coefficient = self._ring._base_ring.promote(coefficient)
 
         if factors is None:
-            self._factors = tuple([] for func in self._ring._functions)
+            self._factors = tuple([] for func in self._ring._func_names)
         else:
             self._factors = tuple(self._normalize_factors(func_factors) for func_factors in factors)
 
     def __mul__(self, other: DifferentialMonomial) -> DifferentialMonomial:
-        l = len(self._ring._functions)
+        l = len(self._ring._func_names)
         product_factors = tuple(self._factors[i] + other._factors[i] for i in range(l))
         product_coefficient = self._coefficient * other._coefficient
         return DifferentialMonomial(ring=self._ring,
@@ -57,11 +56,11 @@ class DifferentialMonomial:
         return False
     
     def __str__(self) -> str:
-        if self._factors == tuple([] for func_name in self._ring._functions):
+        if self._factors == tuple([] for func_name in self._ring._func_names):
             return str(self._coefficient)
         
         factors = []
-        for i, func_name in enumerate(self._ring._functions):
+        for i, func_name in enumerate(self._ring._func_names):
             for derivative_order, power in self._factors[i]:
                 if power == 1:
                     if derivative_order == 0:
@@ -92,7 +91,7 @@ class DifferentialMonomial:
     def _diff(self) -> list[DifferentialMonomial]:
         diff_terms: list[DifferentialMonomial] = []
 
-        l = len(self._ring._functions)
+        l = len(self._ring._func_names)
         for i in range(l):
             for j, factor in enumerate(self._factors[i]):
                 derivative_order, power = factor
@@ -105,9 +104,9 @@ class DifferentialMonomial:
                                                        factors=new_factors))
         return diff_terms
 
-    def _d(self, var: FuncVariable) -> DifferentialMonomial:
-        i = self._ring._functions.index(var._func_name)
-        l = len(self._ring._functions)
+    def _d(self, var: FuncGenerator) -> DifferentialMonomial:
+        i = self._ring._func_names.index(var._func_name)
+        l = len(self._ring._func_names)
 
         new_coefficient = 0
         new_factors_ith = self._factors[i].copy()
@@ -222,20 +221,20 @@ class DifferentialPolynomial:
         else:
             return self.diff(order - 1).diff()
         
-    def d(self, var: Variable, order: int = 1) -> DifferentialPolynomial:
+    def d(self, var: Generator, order: int = 1) -> DifferentialPolynomial:
         if order < 0:
             raise ValueError
         if order == 0:
             return self
         if order == 1:
-            if isinstance(var, ConstantVariable):
+            if isinstance(var, ConstantGenerator):
                 if self._ring._base_ring != var._ring:
                     raise RingMismatchError
                 new_terms = [DifferentialMonomial(ring=self._ring, 
                                                 factors=term._factors, 
                                                 coefficient=term._coefficient.d(var)) for term in self._terms]
                 return DifferentialPolynomial(ring=self._ring, terms=new_terms)
-            if isinstance(var, FuncVariable):
+            if isinstance(var, FuncGenerator):
                 if self._ring != var._ring:
                     raise RingMismatchError
                 return DifferentialPolynomial(ring=self._ring,
@@ -256,27 +255,27 @@ def total_derivative(expression: Expression, order: int = 1) -> Expression:
 
 
 def partial_derivative(expression: Expression,
-                       var: Variable,
+                       var: Generator,
                        order: int = 1) -> Expression:
     if isinstance(expression, (int, Fraction)):
         return 0
-    if isinstance(expression, ConstantPolynomial) and isinstance(var, ConstantVariable):
+    if isinstance(expression, ConstantPolynomial) and isinstance(var, ConstantGenerator):
         return expression.d(var, order)
-    if isinstance(expression, DifferentialPolynomial) and isinstance(var, (ConstantVariable, FuncVariable)):
+    if isinstance(expression, DifferentialPolynomial) and isinstance(var, (ConstantGenerator, FuncGenerator)):
         return expression.d(var, order)
     raise TypeError
 
 
-class FuncVariable(DifferentialPolynomial):
+class FuncGenerator(DifferentialPolynomial):
     _func_name: str
     _derivative: int
 
     def __init__(self, ring: DifferentialRing, func_name: str, derivative: int = 0):
-        if func_name not in ring._functions:
+        if func_name not in ring._func_names:
             raise SymbolNameError
         if derivative < 0:
             raise ValueError
-        factors = tuple([(derivative, 1)] if func_name == func else [] for func in ring._functions)
+        factors = tuple([(derivative, 1)] if func_name == func else [] for func in ring._func_names)
         monomial = DifferentialMonomial(ring=ring, factors=factors)
         terms = [monomial]
 
@@ -284,37 +283,51 @@ class FuncVariable(DifferentialPolynomial):
         self._func_name = func_name
         self._derivative = derivative
     
-    def diff(self, order: int = 1) -> FuncVariable:
+    def diff(self, order: int = 1) -> FuncGenerator:
         if order < 0:
             raise ValueError
         else:
-            return FuncVariable(ring=self._ring, func_name=self._func_name, derivative=self._derivative + order)
+            return FuncGenerator(ring=self._ring, func_name=self._func_name, derivative=self._derivative + order)
 
-    def __getitem__(self, key) -> FuncVariable:
+    def __getitem__(self, key) -> FuncGenerator:
         if isinstance(key, int) and key >= 0:
             return self.diff(order=key)
         else:
             raise ValueError
+        
+    def __hash__(self) -> int:
+        return hash((id(self._ring), self._func_name, self._derivative))
 
 
 class DifferentialRing:
     _ring_name: str
     _base_ring: ConstantRing
-    _functions: list[str]
+    _func_names: list[str]
+    _generators: dict[str, FuncGenerator]
 
     def __init__(self, functions: list[str], base_ring: ConstantRing = QQ, ring_name: Optional[str] = None):
         self._base_ring = base_ring
-        self._ring_name = ring_name if ring_name else "anonymous differential ring"
         
-        self._functions = []
+        self._func_names = []
         for func_name in functions:
             if not func_name:
                 raise SymbolNameError(f"Error defining {self._ring_name}: Empty function names are not allowed")
-            if func_name in self._functions:
+            if func_name in self._func_names:
                 raise SymbolNameError(f"Error defining {self._ring_name}: Repeating function names are not allowed")
-            if func_name in self._base_ring._constants:
+            if func_name in self._base_ring._gen_names:
                 raise SymbolNameError(f"Error defining {self._ring_name}: function name coincides with a constant name")
-            self._functions.append(func_name)
+            self._func_names.append(func_name)
+
+        self._generators = {func_name: FuncGenerator(ring=self, func_name=func_name) for func_name in self._func_names}
+        
+        ring_description = f"{self._base_ring._description_brief}{{{ ', '.join(self._func_names) }}}"
+
+        self._name = str(ring_name)
+        self._description_brief = ring_description
+        self._description = f"{ring_name} = {ring_description}" if ring_name else ring_description
+
+    def __str__(self) -> str:
+        return self._description
 
     def is_element(self, expression) -> bool:
         if self._base_ring.is_element(expression):
@@ -322,6 +335,12 @@ class DifferentialRing:
         if isinstance(expression, DifferentialPolynomial) and expression._ring == self:
             return True
         return False
+    
+    def is_generator(self, variable) -> bool:
+        if isinstance(variable, FuncGenerator) and variable._ring == self and variable._derivative == 0:
+            return True
+        else:
+            return False
     
     def promote(self, expression) -> DifferentialPolynomial:
         if not self.is_element(expression):
@@ -334,8 +353,8 @@ class DifferentialRing:
             return DifferentialPolynomial(ring=self, terms=[monomial])
         raise TypeError
     
-    def constant(self, const_name: str) -> ConstantVariable:
-        return self._base_ring.constant(const_name)
+    def constant(self, const_name: str) -> ConstantGenerator:
+        return self._base_ring.gen(const_name)
     
-    def var(self, func_name: str) -> FuncVariable:
-        return FuncVariable(ring=self, func_name=func_name)
+    def gen(self, func_name: str) -> FuncGenerator:
+        return self._generators[func_name]

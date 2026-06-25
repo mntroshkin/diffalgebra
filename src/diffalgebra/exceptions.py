@@ -3,3 +3,6 @@ class SymbolNameError(KeyError):
 
 class RingMismatchError(TypeError):
     pass
+
+class DefinitionError(KeyError):
+    pass
