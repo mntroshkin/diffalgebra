@@ -1,5 +1,4 @@
-from .constant_ring import QQ
-from .constant_poly_ring import ConstantPolyRing
-from .diff_ring import DifferentialRing, total_derivative
+from .constant_ring import ConstantRing, QQ
+from .diff_ring import DifferentialRing, total_derivative, partial_derivative
 
-__all__ = [QQ, ConstantPolyRing, DifferentialRing, total_derivative]
+__all__ = [QQ, ConstantRing, DifferentialRing, total_derivative, partial_derivative]

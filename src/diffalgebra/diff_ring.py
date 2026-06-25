@@ -2,18 +2,21 @@ from typing import Optional, Sequence
 from fractions import Fraction
 
 from .exceptions import RingMismatchError, SymbolNameError
-from .constant_ring import ConstantRing, QQ
-from .constant_poly_ring import ConstantPolynomial, ConstantVariable
+from .constant_ring import ConstantRing, ConstantPolynomial, ConstantVariable, QQ
 
-type ConstantCoefficient = int | Fraction | ConstantPolynomial
+type Constant = int | Fraction | ConstantPolynomial
+type Expression = int | Fraction | ConstantPolynomial | DifferentialPolynomial
+type Variable = ConstantVariable | FuncVariable
+
 
 type DiffFactor = tuple[int, int]
 type DiffFactors = list[DiffFactor]
 
+
 class DifferentialMonomial:
     _ring: DifferentialRing
     _factors: tuple[DiffFactors, ...]
-    _coefficient: ConstantCoefficient
+    _coefficient: ConstantPolynomial
 
     @staticmethod
     def _normalize_factors(factors: DiffFactors) -> DiffFactors:
@@ -32,7 +35,7 @@ class DifferentialMonomial:
 
     def __init__(self, ring: DifferentialRing,
                  factors: Optional[Sequence[DiffFactors]],
-                 coefficient: ConstantCoefficient = 1):
+                 coefficient: Constant = 1):
         self._ring = ring
         self._coefficient = self._ring._base_ring.promote(coefficient)
 
@@ -116,6 +119,7 @@ class DifferentialMonomial:
         new_factors = tuple(new_factors_ith if k == i else self._factors[k] for k in range(l))
         return DifferentialMonomial(ring=self._ring, factors=new_factors, coefficient=new_coefficient)
 
+
 class DifferentialPolynomial:
     _ring: DifferentialRing
     _terms: list[DifferentialMonomial]
@@ -179,7 +183,7 @@ class DifferentialPolynomial:
     def __rsub__(self, other):
         return self * (-1) + other
     
-    def __pow__(self, other):
+    def __pow__(self, other: int) -> DifferentialPolynomial:
         if not isinstance(other, int):
             raise TypeError
         if other < 0:
@@ -208,43 +212,60 @@ class DifferentialPolynomial:
                 terms_str[i] = "+" + terms_str[i]
         return ''.join(terms_str)
 
-    def diff(self, n: int = 1) -> DifferentialPolynomial:
-        if n < 0:
+    def diff(self, order: int = 1) -> DifferentialPolynomial:
+        if order < 0:
             raise ValueError
-        if n == 0:
+        if order == 0:
             return self
-        if n == 1:
+        if order == 1:
             return DifferentialPolynomial(ring=self._ring, 
                                           terms=[diff_term for term in self._terms for diff_term in term._diff()])
         else:
-            return self.diff(n - 1).diff()
+            return self.diff(order - 1).diff()
         
-    def d(self, var: ConstantVariable | FuncVariable) -> DifferentialPolynomial:
-        if isinstance(var, ConstantVariable):
-            if self._ring._base_ring != var._ring:
-                raise RingMismatchError
-            new_terms = [DifferentialMonomial(ring=self._ring, 
-                                              factors=term._factors, 
-                                              coefficient=term._coefficient.d(var)) for term in self._terms]
-            return DifferentialPolynomial(ring=self._ring, terms=new_terms)
-        if isinstance(var, FuncVariable):
-            if self._ring != var._ring:
-                raise RingMismatchError
-            return DifferentialPolynomial(ring=self._ring,
-                                  terms = [term._d(var) for term in self._terms])
+    def d(self, var: Variable, order: int = 1) -> DifferentialPolynomial:
+        if order < 0:
+            raise ValueError
+        if order == 0:
+            return self
+        if order == 1:
+            if isinstance(var, ConstantVariable):
+                if self._ring._base_ring != var._ring:
+                    raise RingMismatchError
+                new_terms = [DifferentialMonomial(ring=self._ring, 
+                                                factors=term._factors, 
+                                                coefficient=term._coefficient.d(var)) for term in self._terms]
+                return DifferentialPolynomial(ring=self._ring, terms=new_terms)
+            if isinstance(var, FuncVariable):
+                if self._ring != var._ring:
+                    raise RingMismatchError
+                return DifferentialPolynomial(ring=self._ring,
+                                    terms = [term._d(var) for term in self._terms])
+        return self.d(var, order - 1).d(var)
             
         
-
-def total_derivative(expression: ConstantCoefficient | DifferentialPolynomial, order: int = 1):
+def total_derivative(expression: Expression, order: int = 1) -> Expression:
     if order < 0:
         raise ValueError
     if order == 0:
         return expression
-    if order >= 1:
-        if isinstance(expression, (int, Fraction, ConstantPolynomial)):
-            return 0
-        else:
-            return expression.diff(order)
+
+    if isinstance(expression, (int, Fraction, ConstantPolynomial)):
+        return 0
+    else:
+        return expression.diff(order)
+
+
+def partial_derivative(expression: Expression,
+                       var: Variable,
+                       order: int = 1) -> Expression:
+    if isinstance(expression, (int, Fraction)):
+        return 0
+    if isinstance(expression, ConstantPolynomial) and isinstance(var, ConstantVariable):
+        return expression.d(var, order)
+    if isinstance(expression, DifferentialPolynomial) and isinstance(var, (ConstantVariable, FuncVariable)):
+        return expression.d(var, order)
+    raise TypeError
 
 
 class FuncVariable(DifferentialPolynomial):
@@ -264,22 +285,22 @@ class FuncVariable(DifferentialPolynomial):
         self._func_name = func_name
         self._derivative = derivative
     
-    def diff(self, n: int = 1) -> FuncVariable:
-        if n < 0:
+    def diff(self, order: int = 1) -> FuncVariable:
+        if order < 0:
             raise ValueError
         else:
-            return FuncVariable(ring=self._ring, func_name=self._func_name, derivative=self._derivative + n)
+            return FuncVariable(ring=self._ring, func_name=self._func_name, derivative=self._derivative + order)
 
     def __getitem__(self, key) -> FuncVariable:
         if isinstance(key, int) and key >= 0:
-            return self.diff(n=key)
+            return self.diff(order=key)
         else:
             raise ValueError
 
 
 class DifferentialRing:
     _ring_name: str
-    _base_ring: ConstantRing[ConstantCoefficient]
+    _base_ring: ConstantRing
     _functions: list[str]
 
     def __init__(self, functions: list[str], base_ring: ConstantRing = QQ, ring_name: Optional[str] = None):
@@ -289,9 +310,11 @@ class DifferentialRing:
         self._functions = []
         for func_name in functions:
             if not func_name:
-                raise ValueError(f"Error defining {self._ring_name}: Empty function names are not allowed")
+                raise SymbolNameError(f"Error defining {self._ring_name}: Empty function names are not allowed")
             if func_name in self._functions:
-                raise ValueError(f"Error defining {self._ring_name}: Repeating function names are not allowed")
+                raise SymbolNameError(f"Error defining {self._ring_name}: Repeating function names are not allowed")
+            if func_name in self._base_ring._constants:
+                raise SymbolNameError(f"Error defining {self._ring_name}: function name coincides with a constant name")
             self._functions.append(func_name)
 
     def is_element(self, expression) -> bool:
@@ -312,8 +335,8 @@ class DifferentialRing:
             return DifferentialPolynomial(ring=self, terms=[monomial])
         raise TypeError
     
-    def get_constant(self, const_name: str) -> ConstantCoefficient:
-        return self._base_ring.get_constant(const_name)
+    def constant(self, const_name: str) -> ConstantVariable:
+        return self._base_ring.constant(const_name)
     
-    def get_function(self, func_name: str) -> FuncVariable:
+    def var(self, func_name: str) -> FuncVariable:
         return FuncVariable(ring=self, func_name=func_name)
