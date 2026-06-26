@@ -43,12 +43,9 @@ class RingMorphism:
         return self._target.promote(sum(image_terms))
 
 
-    def __call__(self, *args: Any, **kwds: Any) -> Any:
-        if len(args) == 1:
-            if self._source.is_element(args[0]):
-                return self.apply(args[0])
-        else:
-            raise SyntaxError("Too many arguments: expected 1")
+    def __call__(self, argument: Constant) -> Any:
+        if self._source.is_element(argument):
+            return self.apply(argument)
         
     @classmethod
     def identity(cls, ring: ConstantRing) -> RingMorphism:
@@ -108,9 +105,6 @@ class DiffRingMorphism:
             image_terms.append(image_term)
         return self._target.promote(sum(image_terms))
     
-    def __call__(self, *args: Any, **kwds: Any) -> Any:
-        if len(args) == 1:
-            if self._source.is_element(args[0]):
-                return self.apply(args[0])
-        else:
-            raise SyntaxError("Too many arguments: expected 1")
+    def __call__(self, argument: Expression) -> Any:
+        if self._source.is_element(argument):
+            return self.apply(argument)

@@ -5,6 +5,7 @@ import diffalgebra as da
 R = da.ConstantPolyRing(constants=["t"], ring_name="R")
 t = R.gen("t")
 
+
 @st.composite
 def polynomial(draw, max_terms: int) -> da.ConstantPolynomial:
     coefs = draw(st.lists(st.integers(min_value=-10, max_value=10), max_size=max_terms))
