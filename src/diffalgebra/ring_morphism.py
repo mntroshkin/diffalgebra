@@ -1,6 +1,6 @@
 from typing import Any, Optional
 
-from .constant_ring import ConstantRing, ConstantGenerator, ConstantPolynomial, Constant
+from .constant_ring import ConstantRing, ConstantGenerator, ConstantPolynomial, Constant, QQ
 from .diff_ring import DifferentialRing, FuncGenerator, DifferentialPolynomial, Expression
 from .exceptions import DefinitionError
 
@@ -64,14 +64,12 @@ class DiffRingMorphism:
                  base: Optional[RingMorphism] = None,
                  name: Optional[str] = None):
         if base is None:
-            if source._base_ring != target._base_ring:
-                raise DefinitionError(f"Base ring homomorphism between base rings {source._base_ring} and {target._base_ring} must be provided")
-            else:
+            if source._base_ring == target._base_ring:
                 base = RingMorphism.identity(source._base_ring)
-        if base._source != source._base_ring:
-            raise DefinitionError(f"Base ring homomorphism source {base._source} is not the base ring {source._base_ring}")
-        if base._target != target._base_ring:
-            raise DefinitionError(f"Base ring homomorphism target {base._target} is not the base ring {target._base_ring}")
+            elif source._base_ring == QQ:
+                base = RingMorphism(source=QQ, target=target._base_ring, mapping=dict())
+            else:
+                raise DefinitionError(f"Base ring homomorphism between base rings {source._base_ring} and {target._base_ring} must be provided")
         self._base = base
 
         self._source = source
