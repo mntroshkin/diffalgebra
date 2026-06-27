@@ -42,10 +42,8 @@ class RingMorphism:
             image_terms.append(image_term)
         return self._target.promote(sum(image_terms))
 
-
-    def __call__(self, argument: Constant) -> Any:
-        if self._source.is_element(argument):
-            return self.apply(argument)
+    def __call__(self, argument: Constant) -> ConstantPolynomial:
+        return self.apply(argument)
         
     @classmethod
     def identity(cls, ring: ConstantRing) -> RingMorphism:
@@ -103,6 +101,5 @@ class DiffRingMorphism:
             image_terms.append(image_term)
         return self._target.promote(sum(image_terms))
     
-    def __call__(self, argument: Expression) -> Any:
-        if self._source.is_element(argument):
-            return self.apply(argument)
+    def __call__(self, argument: Expression) -> DifferentialPolynomial:
+        return self.apply(argument)
