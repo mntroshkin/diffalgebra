@@ -3,75 +3,94 @@ from typing import Sequence, Optional
 
 from .exceptions import SymbolNameError, RingMismatchError
 
-
-type Constant = int | Fraction | ConstantPolynomial
 type Rational = int | Fraction
+type Constant = int | Fraction | ConstantPolynomial
 
-type Monomial = tuple[int, ...]
-type Term = tuple[Monomial, Rational]
 
-def multiply_terms(left: Term, right: Term) -> Term:
-    monomial_left, coefficient_left = left
-    monomial_right, coefficient_right = right
-    monomial = tuple(exp_left + exp_right for exp_left, exp_right in zip(monomial_left, monomial_right))
-    coefficient = coefficient_left * coefficient_right
-    return monomial, coefficient
+class ConstantMonomial:
+    _ring: ConstantRing
+    _exponents: tuple[int, ...]
+    _coefficient: Rational
 
-def partial_term(term: Term, var_index: int) -> Term:
-    monomial, coefficient = term
-    exponent = monomial[var_index] 
-    if exponent == 0:
-        return (tuple(0 for var in monomial), 0)
-    new_monomial = tuple(exp - 1 if i == var_index else exp for i, exp in enumerate(monomial))
-    return (new_monomial, coefficient * exponent)
+    def __init__(self, ring: ConstantRing,
+                exponents: Optional[Sequence[int]], coefficient: Rational = 1):
+        self._ring = ring
+        self._coefficient = coefficient
+        if exponents is None:
+            self._exponents = tuple(0 for gen in self._ring._generators)
+        else:
+            self._exponents = tuple(exponents)
 
-def integrate_term(term: Term, var_index: int) -> Term:
-    monomial, coefficient = term
-    factor = Fraction(1, monomial[var_index] + 1)
-    new_monomial = tuple(exp + 1 if i == var_index else exp for i, exp in enumerate(monomial))
-    return (new_monomial, coefficient * factor)
+    def __mul__(self, other: ConstantMonomial) -> ConstantMonomial:
+        l = len(self._ring._gen_names)
+        product_exponents = tuple(self._exponents[i] + other._exponents[i] for i in range(l))
+        product_coefficient = self._coefficient * other._coefficient
+        return ConstantMonomial(ring=self._ring,
+                                exponents=product_exponents,
+                                coefficient=product_coefficient)
 
-def str_term(ring: ConstantRing, term: Term) -> str:
-    monomial, coefficient = term
-    if monomial == tuple(0 for gen in ring._generators):
-        return str(coefficient)
+    def _d(self, var: ConstantGenerator) -> ConstantMonomial:
+        index = self._ring._gen_names.index(var._gen_name)
+        exponent = self._exponents[index]
+        if exponent == 0:
+            return ConstantMonomial(self._ring, exponents=None, coefficient=0)
+        else:
+            new_exponents = tuple(exp - 1 if i == index else exp for i, exp in enumerate(self._exponents))
+            return ConstantMonomial(self._ring, exponents=new_exponents, coefficient=self._coefficient * exponent)
+
+    def _int(self, var: ConstantGenerator) -> ConstantMonomial:
+        index = self._ring._gen_names.index(var._gen_name)
+        factor = Fraction(1, self._exponents[index] + 1)
+        new_exponents = tuple(exp + 1 if i == index else exp for i, exp in enumerate(self._exponents))
+        return ConstantMonomial(self._ring, exponents=new_exponents, coefficient=factor * self._coefficient)
+
     
-    factors = []
-    for i, gen_name in enumerate(ring._gen_names):
-        if monomial[i] == 1:
-            factors.append(gen_name)
-        if monomial[i] > 1:
-            factors.append(f"{gen_name}^{monomial[i]}")
+    def __eq__(self, other) -> bool:
+        if isinstance(other, ConstantMonomial):
+            return (self._ring, self._exponents, self._coefficient) == (other._ring, other._exponents, other._coefficient)
+        return False
     
-    if coefficient == 1:
-        return "*".join(factors)
-    elif coefficient == -1:
-        return "-" + "*".join(factors)
-    else:
-        return str(coefficient) + "*" + "*".join(factors)
-
-def normalize_terms(terms: list[Term]) -> list[Term]:
-    terms.sort(reverse=True)
-    normalized_terms: list[Term] = []
-    i = 0
-    while i < len(terms):
-        monomial = terms[i][0]
-        coefficient_sum = 0
-        while i < len(terms) and terms[i][0] == monomial:
-            coefficient_sum += terms[i][1]
-            i += 1
-        if coefficient_sum != 0:
-            normalized_terms.append((monomial, coefficient_sum))
-    return normalized_terms
+    def __str__(self) -> str:
+        if self._exponents == tuple(0 for gen in self._ring._generators):
+            return str(self._coefficient)
+        
+        factors = []
+        for i, gen_name in enumerate(self._ring._gen_names):
+            if self._exponents[i] == 1:
+                factors.append(gen_name)
+            if self._exponents[i] > 1:
+                factors.append(f"{gen_name}^{self._exponents[i]}")
+        
+        if self._coefficient == 1:
+            return "*".join(factors)
+        elif self._coefficient == -1:
+            return "-" + "*".join(factors)
+        else:
+            return str(self._coefficient) + "*" + "*".join(factors)
 
 
 class ConstantPolynomial:
     _ring: ConstantRing
-    _terms: list[Term]
+    _terms: list[ConstantMonomial]
 
-    def __init__(self, ring: ConstantRing, terms: list[Term]):
+    def _normalize_terms(self, terms: Sequence[ConstantMonomial]) -> list[ConstantMonomial]:
+        terms = list(terms)
+        terms.sort(key=lambda term: term._exponents, reverse=True)
+        normalized_terms = []
+        i = 0
+        while i < len(terms):
+            exponents = terms[i]._exponents
+            coefficient_sum = 0
+            while i < len(terms) and terms[i]._exponents == exponents:
+                coefficient_sum += terms[i]._coefficient
+                i += 1
+            if coefficient_sum != 0:
+                normalized_terms.append(ConstantMonomial(self._ring, exponents, coefficient_sum))
+        return normalized_terms
+
+    def __init__(self, ring: ConstantRing, terms: Sequence[ConstantMonomial]):
         self._ring = ring
-        self._terms = normalize_terms(terms)
+        self._terms = self._normalize_terms(terms)
 
     def __add__(self, other):
         if isinstance(other, ConstantPolynomial) and self._ring != other._ring:
@@ -79,10 +98,10 @@ class ConstantPolynomial:
         if self._ring.is_element(other):
             if not isinstance(other, ConstantPolynomial):
                 other = self._ring.promote(other)
-            return ConstantPolynomial(ring=self._ring, terms = self._terms + other._terms)
+            return ConstantPolynomial(self._ring, terms=self._terms + other._terms)
         else:
             return NotImplemented
-
+        
     def __radd__(self, other):
         return self + other
     
@@ -92,8 +111,8 @@ class ConstantPolynomial:
         if self._ring.is_element(other):
             if not isinstance(other, ConstantPolynomial):
                 other = self._ring.promote(other)
-            product_terms = [multiply_terms(left, right) for left in self._terms for right in other._terms]
-            return ConstantPolynomial(ring=self._ring, terms=product_terms)
+            product_terms = [term1 * term2 for term1 in self._terms for term2 in other._terms]
+            return ConstantPolynomial(self._ring, terms=product_terms)
         else:
             return NotImplemented
         
@@ -121,7 +140,7 @@ class ConstantPolynomial:
             return sqrt * sqrt
         else:
             return self * self ** (other - 1)
-
+        
     def d(self, var: ConstantGenerator, order: int = 1) -> ConstantPolynomial:
         if order < 0:
             raise ValueError
@@ -130,27 +149,24 @@ class ConstantPolynomial:
         if order == 1:
             if self._ring != var._ring:
                 raise RingMismatchError
-            var_index = self._ring._gen_names.index(var._gen_name)
             return ConstantPolynomial(ring=self._ring,
-                                    terms = [partial_term(term, var_index) for term in self._terms])
+                                    terms = [term._d(var) for term in self._terms])
         return self.d(var, order - 1).d(var)
-    
-    def int(self, var: ConstantGenerator) -> ConstantPolynomial:
-        var_index = self._ring._gen_names.index(var._gen_name)
-        return ConstantPolynomial(ring=self._ring,
-                                  terms = [integrate_term(term, var_index) for term in self._terms])
 
+    def int(self, var: ConstantGenerator) -> ConstantPolynomial:
+        return ConstantPolynomial(ring=self._ring, terms=[term._int(var) for term in self._terms])
+            
     def __eq__(self, other):
         if self._ring.is_element(other):
             if not isinstance(other, ConstantPolynomial):
                 other = self._ring.promote(other)
             return self._terms == other._terms
         return False
-
+    
     def __str__(self) -> str:
         if len(self._terms) == 0:
             return "0"
-        terms_str = [str_term(self._ring, term) for term in self._terms]
+        terms_str = [str(term) for term in self._terms]
         for i in range(1, len(self._terms)):
             if terms_str[i][0] != "-":
                 terms_str[i] = "+" + terms_str[i]
@@ -159,15 +175,6 @@ class ConstantPolynomial:
     def parenthesis_str(self) -> str:
         return f"({str(self)})" if len(self._terms) > 1 else str(self)
 
-def partial(expression: Constant, var: ConstantGenerator, order: int = 1) -> Constant:
-    if order < 0:
-        raise ValueError
-    if order == 0:
-        return expression
-    if isinstance(expression, (int, Fraction)):
-        return 0
-    if isinstance(expression, ConstantPolynomial):
-        return expression.d(var, order)
 
 class ConstantGenerator(ConstantPolynomial):
     _gen_name: str
@@ -175,8 +182,11 @@ class ConstantGenerator(ConstantPolynomial):
     def __init__(self, ring: ConstantRing, gen_name: str):
         if gen_name not in ring._gen_names:
             raise SymbolNameError
-        monomial = tuple(1 if gen_name == const else 0 for const in ring._gen_names)
-        super().__init__(ring, terms=[(monomial, 1)])
+        exponents = tuple(1 if gen_name == const else 0 for const in ring._gen_names)
+        monomial = ConstantMonomial(ring, exponents)
+        terms = [monomial]
+
+        super().__init__(ring, terms)
         self._gen_name = gen_name
 
     def __hash__(self) -> int:
@@ -229,8 +239,8 @@ class ConstantRing:
         if isinstance(expression, ConstantPolynomial):
             return expression
         elif isinstance(expression, (int, Fraction)):
-            monomial = tuple(0 for gen in self._gen_names)
-            return ConstantPolynomial(ring=self, terms=[(monomial, expression)])
+            monomial = ConstantMonomial(ring=self, exponents=None, coefficient=expression)
+            return ConstantPolynomial(ring=self, terms=[monomial])
         raise TypeError
     
     def gen(self, gen_name: str) -> ConstantGenerator:

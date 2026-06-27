@@ -35,10 +35,10 @@ class RingMorphism:
             raise TypeError(f"{expression} is not an element of {self._source}")
         image_terms: list[Constant] = []
         expression = self._source.promote(expression)
-        for term in expression._terms:
-            image_term = term._coefficient
-            for gen_image, exp in zip(self._mapping, term._exponents):
-                image_term = image_term * (gen_image ** exp)
+        for monomial, coefficient in expression._terms:
+            image_term = coefficient
+            for gen_image, exp in zip(self._mapping, monomial):
+                image_term *= (gen_image ** exp)
             image_terms.append(image_term)
         return self._target.promote(sum(image_terms))
 
@@ -94,8 +94,9 @@ class DiffRingMorphism:
         image_terms: list[Expression] = []
         expression = self._source.promote(expression)
         for term in expression._terms:
-            image_term = self._base(term._coefficient)
-            for gen_image, factors in zip(self._mapping, term._factors):
+            monomial, coefficient = term
+            image_term = self._base(coefficient)
+            for gen_image, factors in zip(self._mapping, monomial):
                 for derivative, exp in factors:
                     image_term *= gen_image.diff(order=derivative) ** exp
             image_terms.append(image_term)

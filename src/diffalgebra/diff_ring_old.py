@@ -2,128 +2,144 @@ from typing import Optional, Sequence
 from fractions import Fraction
 
 from .exceptions import RingMismatchError, SymbolNameError
-from .constant_ring import ConstantRing, ConstantPolynomial, ConstantGenerator, QQ, Constant, partial as partial_for_const
-
+from .constant_ring import ConstantRing, ConstantPolynomial, ConstantGenerator, QQ, Constant
 
 type Expression = int | Fraction | ConstantPolynomial | DifferentialPolynomial
 type Generator = ConstantGenerator | FuncGenerator
 
+
 type DiffFactor = tuple[int, int]
 type DiffFactors = list[DiffFactor]
 
-type DiffMonomial = tuple[DiffFactors, ...]
-type DiffTerm = tuple[DiffMonomial, Constant]
+class DifferentialMonomial:
+    _ring: DifferentialRing
+    _factors: tuple[DiffFactors, ...]
+    _coefficient: ConstantPolynomial
 
-def normalize_factors(factors: DiffFactors) -> DiffFactors:
-    factors.sort()
-    normalized_factors: DiffFactors = []
-    i = 0
-    while i < len(factors):
-        derivative_order = factors[i][0]
-        total_power = 0
-        while i < len(factors) and factors[i][0] == derivative_order:
-            total_power += factors[i][1]
-            i += 1
-        if total_power != 0:
-            normalized_factors.append((derivative_order, total_power))
-    return normalized_factors
+    @staticmethod
+    def _normalize_factors(factors: DiffFactors) -> DiffFactors:
+        factors.sort()
+        normalized_factors: DiffFactors = []
+        i = 0
+        while i < len(factors):
+            derivative_order = factors[i][0]
+            total_power = 0
+            while i < len(factors) and factors[i][0] == derivative_order:
+                total_power += factors[i][1]
+                i += 1
+            if total_power != 0:
+                normalized_factors.append((derivative_order, total_power))
+        return normalized_factors
 
-def normalize_terms(terms: list[DiffTerm]) -> list[DiffTerm]:
-    terms.sort()
-    normalized_terms: list[DiffTerm] = []
-    i = 0
-    while i < len(terms):
-        monomial = terms[i][0]
-        coefficient_sum = 0
-        while i < len(terms) and terms[i][0] == monomial:
-            coefficient_sum += terms[i][1]
-            i += 1
-        if coefficient_sum != 0:
-            normalized_terms.append((monomial, coefficient_sum))
-    return normalized_terms
+    def __init__(self, ring: DifferentialRing,
+                 factors: Optional[Sequence[DiffFactors]],
+                 coefficient: Constant = 1):
+        self._ring = ring
+        self._coefficient = self._ring._base_ring.promote(coefficient)
 
-def multiply_terms(left: DiffTerm, right: DiffTerm) -> DiffTerm:
-    monomial_left, coefficient_left = left
-    monomial_right, coefficient_right = right
-    monomial = tuple(normalize_factors(factors_left + factors_right)
-                     for factors_left, factors_right
-                     in zip(monomial_left, monomial_right))
-    coefficient = coefficient_left * coefficient_right
-    return monomial, coefficient
-
-def diff_termwise(term: DiffTerm) -> list[DiffTerm]:
-    monomial, coefficient = term
-    diff_terms: list[DiffTerm] = []
-    for i in range(len(monomial)):
-        for j, factor in enumerate(monomial[i]):
-            derivative_order, power = factor
-            new_factors_ith = monomial[i].copy()
-            new_factors_ith[j] = (derivative_order, power - 1)
-            new_factors_ith.append((derivative_order + 1, 1))
-            new_factors = tuple(normalize_factors(new_factors_ith) if k == i else factors 
-                                for k, factors in enumerate(monomial))
-            diff_terms.append((new_factors, coefficient * power))
-    return diff_terms
-
-
-def partial_termwise(term: DiffTerm, var_index: int, derivative_order: int) -> DiffTerm:
-    monomial, coefficient = term
-
-    new_coefficient = 0
-    new_factors_ith = monomial[var_index].copy()
-    for j, (derivative, power) in enumerate(new_factors_ith):
-        if derivative == derivative_order:
-            new_factors_ith[j] = (derivative, power - 1)
-            new_coefficient = coefficient * power
-    new_monomial = tuple(normalize_factors(new_factors_ith) if k == var_index else factors 
-                        for k, factors in enumerate(monomial))
-    if new_coefficient == 0:
-        return (tuple([] for var in monomial), 0)
-    return (new_monomial, new_coefficient)
-    
-
-def str_term(ring: DifferentialRing, term: DiffTerm) -> str:
-    monomial, coefficient = term
-    if monomial == tuple([] for func_name in ring._func_names):
-        return str(coefficient)
-    
-    factors = []
-    for i, func_name in enumerate(ring._func_names):
-        for derivative_order, power in monomial[i]:
-            if power == 1:
-                if derivative_order == 0:
-                    factors.append(func_name)
-                elif derivative_order <= 3:
-                    factors.append(f"{func_name}_{"x" * derivative_order}")
-                else:
-                    factors.append(f"{func_name}_{derivative_order}")
-            else:
-                if derivative_order == 0:
-                    factors.append(f"{func_name}^{power}")
-                elif derivative_order <= 3:
-                    factors.append(f"({func_name}_{"x" * derivative_order})^{power}")
-                else:
-                    factors.append(f"({func_name}_{derivative_order})^{power}")
-    
-    if coefficient == 1:
-        return "*".join(factors)
-    elif coefficient == -1:
-        return "-" + "*".join(factors)
-    else:
-        if isinstance(coefficient, ConstantPolynomial):
-            coefficient_str = coefficient.parenthesis_str()
+        if factors is None:
+            self._factors = tuple([] for func in self._ring._func_names)
         else:
-            coefficient_str = str(coefficient)
-        return coefficient_str + "*" + "*".join(factors)
+            self._factors = tuple(self._normalize_factors(func_factors) for func_factors in factors)
+
+    def __mul__(self, other: DifferentialMonomial) -> DifferentialMonomial:
+        l = len(self._ring._func_names)
+        product_factors = tuple(self._factors[i] + other._factors[i] for i in range(l))
+        product_coefficient = self._coefficient * other._coefficient
+        return DifferentialMonomial(ring=self._ring,
+                                factors=product_factors,
+                                coefficient=product_coefficient)
+
+    def __eq__(self, other) -> bool:
+        if isinstance(other, DifferentialMonomial):
+            return (self._ring, self._factors, self._coefficient) == (other._ring, other._factors, other._coefficient)
+        return False
     
+    def __str__(self) -> str:
+        if self._factors == tuple([] for func_name in self._ring._func_names):
+            return str(self._coefficient)
+        
+        factors = []
+        for i, func_name in enumerate(self._ring._func_names):
+            for derivative_order, power in self._factors[i]:
+                if power == 1:
+                    if derivative_order == 0:
+                        factors.append(func_name)
+                    elif derivative_order <= 3:
+                        factors.append(f"{func_name}_{"x" * derivative_order}")
+                    else:
+                        factors.append(f"{func_name}_{derivative_order}")
+                else:
+                    if derivative_order == 0:
+                        factors.append(f"{func_name}^{power}")
+                    elif derivative_order <= 3:
+                        factors.append(f"({func_name}_{"x" * derivative_order})^{power}")
+                    else:
+                        factors.append(f"({func_name}_{derivative_order})^{power}")
+        
+        if self._coefficient == 1:
+            return "*".join(factors)
+        elif self._coefficient == -1:
+            return "-" + "*".join(factors)
+        else:
+            if isinstance(self._coefficient, ConstantPolynomial):
+                coefficient_str = self._coefficient.parenthesis_str()
+            else:
+                coefficient_str = str(self._coefficient)
+            return coefficient_str + "*" + "*".join(factors)
+        
+    def _diff(self) -> list[DifferentialMonomial]:
+        diff_terms: list[DifferentialMonomial] = []
+
+        l = len(self._ring._func_names)
+        for i in range(l):
+            for j, factor in enumerate(self._factors[i]):
+                derivative_order, power = factor
+                new_factors_ith = self._factors[i].copy()
+                new_factors_ith[j] = (derivative_order, power - 1)
+                new_factors_ith.append((derivative_order + 1, 1))
+                new_factors = tuple(new_factors_ith if k == i else self._factors[k] for k in range(l))
+                diff_terms.append(DifferentialMonomial(ring=self._ring,
+                                                       coefficient=self._coefficient * power,
+                                                       factors=new_factors))
+        return diff_terms
+
+    def _d(self, var: FuncGenerator) -> DifferentialMonomial:
+        i = self._ring._func_names.index(var._func_name)
+        l = len(self._ring._func_names)
+
+        new_coefficient = 0
+        new_factors_ith = self._factors[i].copy()
+        for j, (derivative, exp) in enumerate(new_factors_ith):
+            if derivative == var._derivative:
+                new_factors_ith[j] = (derivative, exp - 1)
+                new_coefficient = self._coefficient * exp
+        new_factors = tuple(new_factors_ith if k == i else self._factors[k] for k in range(l))
+        return DifferentialMonomial(ring=self._ring, factors=new_factors, coefficient=new_coefficient)
+
 
 class DifferentialPolynomial:
     _ring: DifferentialRing
-    _terms: list[DiffTerm]
+    _terms: list[DifferentialMonomial]
 
-    def __init__(self, ring: DifferentialRing, terms: list[DiffTerm]):
+    def _normalize_terms(self, terms: Sequence[DifferentialMonomial]) -> list[DifferentialMonomial]:
+        terms = list(terms)
+        terms.sort(key=lambda term: term._factors)
+        normalized_terms = []
+        i = 0
+        while i < len(terms):
+            factors = terms[i]._factors
+            coefficient_sum = 0
+            while i < len(terms) and terms[i]._factors == factors:
+                coefficient_sum += terms[i]._coefficient
+                i += 1
+            if coefficient_sum != 0:
+                normalized_terms.append(DifferentialMonomial(self._ring, factors, coefficient_sum))
+        return normalized_terms
+
+    def __init__(self, ring: DifferentialRing, terms: Sequence[DifferentialMonomial]):
         self._ring = ring
-        self._terms = normalize_terms(terms)
+        self._terms = self._normalize_terms(terms)
 
     def __add__(self, other):
         if isinstance(other, DifferentialPolynomial) and other._ring != self._ring:
@@ -148,8 +164,8 @@ class DifferentialPolynomial:
         if self._ring.is_element(other):
             if not isinstance(other, DifferentialPolynomial):
                 other = self._ring.promote(other)
-            product_terms = [multiply_terms(left, right) for left in self._terms for right in other._terms]
-            return DifferentialPolynomial(ring=self._ring, terms=product_terms)     
+            product_terms = [term1 * term2 for term1 in self._terms for term2 in other._terms]
+            return DifferentialPolynomial(self._ring, terms=product_terms)
         else:
             return NotImplemented
         
@@ -188,12 +204,12 @@ class DifferentialPolynomial:
     def __str__(self) -> str:
         if len(self._terms) == 0:
             return "0"
-        terms_str = [str_term(self._ring, term) for term in self._terms]
+        terms_str = [str(term) for term in self._terms]
         for i in range(1, len(self._terms)):
             if terms_str[i][0] != "-":
                 terms_str[i] = "+" + terms_str[i]
         return ''.join(terms_str)
-    
+
     def diff(self, order: int = 1) -> DifferentialPolynomial:
         if order < 0:
             raise ValueError
@@ -201,9 +217,7 @@ class DifferentialPolynomial:
             return self
         if order == 1:
             return DifferentialPolynomial(ring=self._ring, 
-                                          terms=[diff_term 
-                                                 for term in self._terms 
-                                                 for diff_term in diff_termwise(term)])
+                                          terms=[diff_term for term in self._terms for diff_term in term._diff()])
         else:
             return self.diff(order - 1).diff()
         
@@ -216,18 +230,22 @@ class DifferentialPolynomial:
             if isinstance(var, ConstantGenerator):
                 if self._ring._base_ring != var._ring:
                     raise RingMismatchError
-                new_terms = [(monomial, partial_for_const(coefficient, var)) 
-                             for (monomial, coefficient) in self._terms]
+                new_terms = [DifferentialMonomial(ring=self._ring, 
+                                                factors=term._factors, 
+                                                coefficient=term._coefficient.d(var)) for term in self._terms]
                 return DifferentialPolynomial(ring=self._ring, terms=new_terms)
             if isinstance(var, FuncGenerator):
                 if self._ring != var._ring:
                     raise RingMismatchError
-                var_index = self._ring._func_names.index(var._func_name)
-                derivative_order = var._derivative
                 return DifferentialPolynomial(ring=self._ring,
-                                    terms = [partial_termwise(term, var_index, derivative_order) 
-                                             for term in self._terms])
+                                    terms = [term._d(var) for term in self._terms])
         return self.d(var, order - 1).d(var)
+
+    def int(self, var: ConstantGenerator) -> DifferentialPolynomial:
+        new_terms = [DifferentialMonomial(ring=self._ring,
+                                          factors=term._factors,
+                                          coefficient=term._coefficient.int(var)) for term in self._terms]
+        return DifferentialPolynomial(ring=self._ring, terms=new_terms)
             
         
 def total_derivative(expression: Expression, order: int = 1) -> Expression:
@@ -263,9 +281,11 @@ class FuncGenerator(DifferentialPolynomial):
             raise SymbolNameError
         if derivative < 0:
             raise ValueError
-        monomial = tuple([(derivative, 1)] if func_name == func else [] for func in ring._func_names)
-        super().__init__(ring, terms=[(monomial, 1)])
+        factors = tuple([(derivative, 1)] if func_name == func else [] for func in ring._func_names)
+        monomial = DifferentialMonomial(ring=ring, factors=factors)
+        terms = [monomial]
 
+        super().__init__(ring, terms)
         self._func_name = func_name
         self._derivative = derivative
     
@@ -334,8 +354,9 @@ class DifferentialRing:
         if isinstance(expression, DifferentialPolynomial):
             return expression
         if isinstance(expression, (int, Fraction, ConstantPolynomial)):
-            monomial = tuple([] for func in self._func_names)
-            return DifferentialPolynomial(ring=self, terms=[(monomial, expression)])
+            expression = self._base_ring.promote(expression)
+            monomial = DifferentialMonomial(ring=self, factors=None, coefficient=expression)
+            return DifferentialPolynomial(ring=self, terms=[monomial])
         raise TypeError
     
     def constants(self, *const_names: str) -> tuple[ConstantGenerator, ...]:

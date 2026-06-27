@@ -20,8 +20,6 @@ def test_zeroth_power_is_one(f: da.ConstantPolynomial):
     assert (f ** 0) == 1
 
 
-@settings(deadline=None)
-@pytest.mark.slow
 @given(polynomial_small,
        st.integers(min_value=0, max_value=5),
        st.integers(min_value=0, max_value=5))
@@ -29,8 +27,6 @@ def test_polynomial_exponents_add_under_product(f: da.ConstantPolynomial, a: int
     assert (f ** a) * (f ** b) == f ** (a + b)
 
 
-@settings(deadline=None)
-@pytest.mark.slow
 @given(polynomial_small,
        st.integers(min_value=1, max_value=4),
        st.integers(min_value=1, max_value=4))
