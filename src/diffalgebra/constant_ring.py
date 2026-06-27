@@ -37,6 +37,13 @@ class ConstantMonomial:
         else:
             new_exponents = tuple(exp - 1 if i == index else exp for i, exp in enumerate(self._exponents))
             return ConstantMonomial(self._ring, exponents=new_exponents, coefficient=self._coefficient * exponent)
+
+    def _int(self, var: ConstantGenerator) -> ConstantMonomial:
+        index = self._ring._gen_names.index(var._gen_name)
+        factor = Fraction(1, self._exponents[index] + 1)
+        new_exponents = tuple(exp + 1 if i == index else exp for i, exp in enumerate(self._exponents))
+        return ConstantMonomial(self._ring, exponents=new_exponents, coefficient=factor * self._coefficient)
+
     
     def __eq__(self, other) -> bool:
         if isinstance(other, ConstantMonomial):
@@ -145,6 +152,9 @@ class ConstantPolynomial:
             return ConstantPolynomial(ring=self._ring,
                                     terms = [term._d(var) for term in self._terms])
         return self.d(var, order - 1).d(var)
+
+    def int(self, var: ConstantGenerator) -> ConstantPolynomial:
+        return ConstantPolynomial(ring=self._ring, terms=[term._int(var) for term in self._terms])
             
     def __eq__(self, other):
         if self._ring.is_element(other):
@@ -234,10 +244,16 @@ class ConstantRing():
         raise TypeError
     
     def gen(self, gen_name: str) -> ConstantGenerator:
-        if gen_name in self._generators.keys():
-            return self._generators[gen_name]
+        if not gen_name in self._gen_names:
+            raise SymbolNameError(f"{gen_name} is a not a generator of {self}")
         else:
-            raise SymbolNameError
+            return self._generators[gen_name]
+    
+    def gens(self, *gen_names: str) -> tuple[ConstantGenerator, ...]:
+        if len(gen_names) == 0:
+            return tuple(self._generators.values())
+        else:
+            return tuple(self.gen(gen_name) for gen_name in gen_names)
 
 
 class ConstantPolyRing(ConstantRing):

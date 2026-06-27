@@ -240,6 +240,12 @@ class DifferentialPolynomial:
                 return DifferentialPolynomial(ring=self._ring,
                                     terms = [term._d(var) for term in self._terms])
         return self.d(var, order - 1).d(var)
+
+    def int(self, var: ConstantGenerator) -> DifferentialPolynomial:
+        new_terms = [DifferentialMonomial(ring=self._ring,
+                                          factors=term._factors,
+                                          coefficient=term._coefficient.int(var)) for term in self._terms]
+        return DifferentialPolynomial(ring=self._ring, terms=new_terms)
             
         
 def total_derivative(expression: Expression, order: int = 1) -> Expression:
@@ -305,7 +311,7 @@ class DifferentialRing:
     _func_names: list[str]
     _generators: dict[str, FuncGenerator]
 
-    def __init__(self, functions: list[str], base_ring: ConstantRing = QQ, ring_name: Optional[str] = None):
+    def __init__(self, functions: Sequence[str], base_ring: ConstantRing = QQ, ring_name: Optional[str] = None):
         self._base_ring = base_ring
         
         self._func_names = []
@@ -353,8 +359,17 @@ class DifferentialRing:
             return DifferentialPolynomial(ring=self, terms=[monomial])
         raise TypeError
     
-    def constant(self, const_name: str) -> ConstantGenerator:
-        return self._base_ring.gen(const_name)
+    def constants(self, *const_names: str) -> tuple[ConstantGenerator, ...]:
+        return self._base_ring.gens(*const_names)
     
     def gen(self, func_name: str) -> FuncGenerator:
-        return self._generators[func_name]
+        if not func_name in self._func_names:
+            raise SymbolNameError(f"{func_name} is a not a generator of {self}")
+        else:
+            return self._generators[func_name]
+    
+    def gens(self, *func_names: str) -> tuple[FuncGenerator, ...]:
+        if len(func_names) == 0:
+            return tuple(self._generators.values())
+        else:
+            return tuple(self.gen(func_name) for func_name in func_names)
