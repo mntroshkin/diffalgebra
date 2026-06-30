@@ -1,8 +1,8 @@
 from typing import Optional, Sequence
 from fractions import Fraction
 
-from .exceptions import RingMismatchError, SymbolNameError
-from .constant_ring import ConstantRing, ConstantPolynomial, ConstantGenerator, QQ, Constant
+from ..exceptions import RingMismatchError, SymbolNameError
+from ..constant_ring import ConstantRing, ConstantPolynomial, ConstantGenerator, QQ, Constant
 
 type Expression = int | Fraction | ConstantPolynomial | DifferentialPolynomial
 type Generator = ConstantGenerator | FuncGenerator
@@ -244,7 +244,7 @@ class DifferentialPolynomial:
     def int(self, var: ConstantGenerator) -> DifferentialPolynomial:
         new_terms = [DifferentialMonomial(ring=self._ring,
                                           factors=term._factors,
-                                          coefficient=term._coefficient.int(var)) for term in self._terms]
+                                          coefficient=term._coefficient.integral(var)) for term in self._terms]
         return DifferentialPolynomial(ring=self._ring, terms=new_terms)
             
         

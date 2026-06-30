@@ -1,8 +1,13 @@
 from hypothesis import given, strategies as st, settings
-from .strategies import polynomial_small, polynomial_medium
-import pytest
+from .strategies import polynomial
 
 import diffalgebra as da
+
+R = da.ConstantPolyRing(constants=["a", "b", "c", "d", "e"])
+
+polynomial_small = polynomial(ring=R, max_terms=3)
+polynomial_medium = polynomial(ring=R, max_terms=10)
+
 
 
 @given(polynomial_medium)

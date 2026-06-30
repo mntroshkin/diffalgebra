@@ -29,6 +29,10 @@ def normalize_factors(factors: DiffFactors) -> DiffFactors:
     return normalized_factors
 
 def normalize_terms(terms: list[DiffTerm]) -> list[DiffTerm]:
+    for i, term in enumerate(terms):
+        monomial, coefficient = term
+        monomial = tuple(normalize_factors(factors) for factors in monomial)
+        terms[i] = (monomial, coefficient)
     terms.sort()
     normalized_terms: list[DiffTerm] = []
     i = 0
@@ -45,7 +49,7 @@ def normalize_terms(terms: list[DiffTerm]) -> list[DiffTerm]:
 def multiply_terms(left: DiffTerm, right: DiffTerm) -> DiffTerm:
     monomial_left, coefficient_left = left
     monomial_right, coefficient_right = right
-    monomial = tuple(normalize_factors(factors_left + factors_right)
+    monomial = tuple(factors_left + factors_right
                      for factors_left, factors_right
                      in zip(monomial_left, monomial_right))
     coefficient = coefficient_left * coefficient_right
@@ -60,10 +64,18 @@ def diff_termwise(term: DiffTerm) -> list[DiffTerm]:
             new_factors_ith = monomial[i].copy()
             new_factors_ith[j] = (derivative_order, power - 1)
             new_factors_ith.append((derivative_order + 1, 1))
-            new_factors = tuple(normalize_factors(new_factors_ith) if k == i else factors 
+            new_factors = tuple(new_factors_ith if k == i else factors 
                                 for k, factors in enumerate(monomial))
             diff_terms.append((new_factors, coefficient * power))
     return diff_terms
+
+
+def exponent_in_term(term: DiffTerm, var_index: int, derivative_order: int) -> int:
+    monomial, coefficient = term
+    for derivative, power in monomial[var_index]:
+        if derivative == derivative_order:
+            return power
+    return 0
 
 
 def partial_termwise(term: DiffTerm, var_index: int, derivative_order: int) -> DiffTerm:
@@ -75,7 +87,7 @@ def partial_termwise(term: DiffTerm, var_index: int, derivative_order: int) -> D
         if derivative == derivative_order:
             new_factors_ith[j] = (derivative, power - 1)
             new_coefficient = coefficient * power
-    new_monomial = tuple(normalize_factors(new_factors_ith) if k == var_index else factors 
+    new_monomial = tuple(new_factors_ith if k == var_index else factors 
                         for k, factors in enumerate(monomial))
     if new_coefficient == 0:
         return (tuple([] for var in monomial), 0)
@@ -193,6 +205,9 @@ class DifferentialPolynomial:
             if terms_str[i][0] != "-":
                 terms_str[i] = "+" + terms_str[i]
         return ''.join(terms_str)
+
+    def __repr__(self) -> str:
+        return str(self)
     
     def diff(self, order: int = 1) -> DifferentialPolynomial:
         if order < 0:
@@ -228,8 +243,67 @@ class DifferentialPolynomial:
                                     terms = [partial_termwise(term, var_index, derivative_order) 
                                              for term in self._terms])
         return self.d(var, order - 1).d(var)
-            
-        
+
+    def _highest_derivative(self, var: FuncGenerator) -> int:
+        if self._ring != var._ring:
+            raise RingMismatchError
+        var_index = self._ring._func_names.index(var._func_name)
+        highest_derivative = -1
+        for term in self._terms:
+            highest_for_term = max((derivative for derivative, power in term[0][var_index]), default=-1)
+            highest_derivative = max(highest_derivative, highest_for_term)
+        return highest_derivative
+    
+    def delta(self, var: FuncGenerator) -> DifferentialPolynomial:
+        if var._derivative != 0:
+            raise ValueError("{var} is not a generator of {self._ring}")
+        d = self._highest_derivative(var)
+        result = sum((-1) ** i * self.d(var[i]).diff(order=i) for i in range(d + 1))
+        return self._ring.promote(result)
+
+    def coefficient(self, monomial: Expression) -> Constant:
+        monomial = self._ring.promote(monomial)
+        if len(monomial._terms) != 1:
+            raise ValueError
+        exponents, coef = monomial._terms[0]
+        for term in self._terms:
+            if term[0] == exponents:
+                return term[1]
+        return 0
+    
+    def integral(self) -> DifferentialPolynomial | None:
+        if self == 0:
+            return self._ring.promote(0)
+        if self.coefficient(1) != 0:
+            return
+        for var_index, var in enumerate(self._ring.gens()):
+            if self._highest_derivative(var) != -1:
+                new_integrand = self._ring.promote(0)
+                integral_part = self._ring.promote(0)
+                k = self._highest_derivative(var)
+                if var == 0:
+                    return
+                for term in self._terms:
+                    monomial, coefficient = term
+                    if exponent_in_term(term, var_index, k) == 0:
+                        new_integrand += DifferentialPolynomial(self._ring, terms=[term])
+                    elif exponent_in_term(term, var_index, k) > 1:
+                        return
+                    else:
+                        j = exponent_in_term(term, var_index, k - 1)
+                        factor = Fraction(1, j + 1) * var[k - 1] ** (j + 1)
+                        h_factors_ith = [(derivative, power)
+                                           for derivative, power in monomial[var_index]
+                                           if derivative < k - 1]
+                        h_monomial = tuple(h_factors_ith
+                                           if k == var_index else factors
+                                           for k, factors in enumerate(monomial))
+                        h = DifferentialPolynomial(self._ring, terms=[(h_monomial, coefficient)])
+                        integral_part += h * factor
+                        new_integrand -= h.diff() * factor
+                return integral_part + new_integrand.integral()
+                        
+
 def total_derivative(expression: Expression, order: int = 1) -> Expression:
     if order < 0:
         raise ValueError
@@ -240,7 +314,6 @@ def total_derivative(expression: Expression, order: int = 1) -> Expression:
         return 0
     else:
         return expression.diff(order)
-
 
 def partial_derivative(expression: Expression,
                        var: Generator,

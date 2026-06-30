@@ -1,7 +1,7 @@
 from fractions import Fraction
 from typing import Sequence, Optional
 
-from .exceptions import SymbolNameError, RingMismatchError
+from ..exceptions import SymbolNameError, RingMismatchError
 
 type Rational = int | Fraction
 type Constant = int | Fraction | ConstantPolynomial

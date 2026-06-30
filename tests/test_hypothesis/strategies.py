@@ -18,12 +18,6 @@ def polynomial(draw, ring: da.ConstantPolyRing, max_terms: int = 5) -> da.Consta
     return da.ConstantPolynomial(ring, terms)
 
 
-R = da.ConstantPolyRing(constants=["a", "b", "c", "d", "e"])
-
-polynomial_small = polynomial(ring=R, max_terms=3)
-polynomial_medium = polynomial(ring=R, max_terms=10)
-
-
 @st.composite
 def diff_polynomial(draw, ring: da.DifferentialRing, 
                     max_terms: int = 5, max_nonlinearity: int = 3) -> da.DifferentialPolynomial:
@@ -42,7 +36,3 @@ def diff_polynomial(draw, ring: da.DifferentialRing,
     terms = list(zip(monomial_list, coef_list))
     return da.DifferentialPolynomial(ring, terms)
 
-
-A = da.DifferentialRing(functions=["u", "v"])
-diff_polynomial_small = diff_polynomial(ring=A, max_terms=5, max_nonlinearity=2)
-diff_polynomial_medium = diff_polynomial(ring=A, max_terms=10, max_nonlinearity=3)

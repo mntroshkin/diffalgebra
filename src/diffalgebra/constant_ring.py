@@ -135,7 +135,7 @@ class ConstantPolynomial:
                                     terms = [partial_term(term, var_index) for term in self._terms])
         return self.d(var, order - 1).d(var)
     
-    def int(self, var: ConstantGenerator) -> ConstantPolynomial:
+    def integral(self, var: ConstantGenerator) -> ConstantPolynomial:
         var_index = self._ring._gen_names.index(var._gen_name)
         return ConstantPolynomial(ring=self._ring,
                                   terms = [integrate_term(term, var_index) for term in self._terms])

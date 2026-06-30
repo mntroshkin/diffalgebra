@@ -15,6 +15,27 @@ def test_derivative_representation():
 
 def test_product_rule():
     A = da.DifferentialRing(functions=["u", "v"], ring_name="A")
-    u = A.gen("u")
-    v = A.gen("v")
+    u, v = A.gens()
     assert (u * v).diff() == u[1] * v + u * v[1]
+
+def test_partial_derivative_zero():
+    A = da.DifferentialRing(functions=["u", "v"], ring_name="A")
+    u, v = A.gens()
+    f = u * u[2] + u[1] ** 2
+    assert f.d(v) == 0
+
+def test_partial_derivative():
+    A = da.DifferentialRing(functions=["u"], ring_name="A")
+    u = A.gen("u")
+    assert (u * u[1] ** 2 * u[2]).d(u[1]) == 2 * u * u[1] * u[2]
+
+def test_coefficient():
+    R = da.ConstantPolyRing(constants=["t"], ring_name="R")
+    t = R.gen("t")
+    A = da.DifferentialRing(functions=["u"], base_ring=R, ring_name="A")
+    u = A.gen("u")
+    f = (1 + t) + 2 * u + t ** 2 * u * u[1]
+    assert f.coefficient(1) == 1 + t
+    assert f.coefficient(u) == 2
+    assert f.coefficient(u[1]) == 0
+    assert f.coefficient(u * u[1]) == t ** 2  
