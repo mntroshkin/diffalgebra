@@ -281,13 +281,14 @@ class DifferentialPolynomial:
                 new_integrand = self._ring.promote(0)
                 integral_part = self._ring.promote(0)
                 k = self._highest_derivative(var)
-                if var == 0:
+                if k == 0:
                     return
                 for term in self._terms:
                     monomial, coefficient = term
-                    if exponent_in_term(term, var_index, k) == 0:
+                    j = exponent_in_term(term, var_index, k)
+                    if j == 0:
                         new_integrand += DifferentialPolynomial(self._ring, terms=[term])
-                    elif exponent_in_term(term, var_index, k) > 1:
+                    elif j > 1:
                         return
                     else:
                         j = exponent_in_term(term, var_index, k - 1)
