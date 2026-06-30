@@ -279,7 +279,7 @@ class DifferentialPolynomial:
         for var_index, var in enumerate(self._ring.gens()):
             if self._highest_derivative(var) != -1:
                 new_integrand = self._ring.promote(0)
-                integral_part = self._ring.promote(0)
+                integral_found = self._ring.promote(0)
                 k = self._highest_derivative(var)
                 if k == 0:
                     return
@@ -300,9 +300,12 @@ class DifferentialPolynomial:
                                            if k == var_index else factors
                                            for k, factors in enumerate(monomial))
                         h = DifferentialPolynomial(self._ring, terms=[(h_monomial, coefficient)])
-                        integral_part += h * factor
+                        integral_found += h * factor
                         new_integrand -= h.diff() * factor
-                return integral_part + new_integrand.integral()
+                integral_remaining = new_integrand.integral()
+                if integral_remaining is None:
+                    return
+                return integral_found + integral_remaining
                         
 
 def total_derivative(expression: Expression, order: int = 1) -> Expression:
