@@ -158,6 +158,12 @@ class ConstantPolynomial:
     
     def parenthesis_str(self) -> str:
         return f"({str(self)})" if len(self._terms) > 1 else str(self)
+    
+    def __lt__(self, other: Constant) -> bool:
+        if not self._ring.is_element(other):
+            raise RingMismatchError
+        other = self._ring.promote(other)
+        return self._terms < other._terms
 
 def partial(expression: Constant, var: ConstantGenerator, order: int = 1) -> Constant:
     if order < 0:

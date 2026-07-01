@@ -33,8 +33,10 @@ class EvolutionOperator:
         result = self._ring.promote(0)
         expression = self._ring.promote(expression)
         for i, var in enumerate(self._ring.gens()):
-            for j in range(expression._highest_derivative(var)):
-                result += expression.d(var[j]) * self._mapping[i].diff(j)
+            factor = self._mapping[i]
+            for j in range(expression._highest_derivative(var) + 1):
+                result += expression.d(var[j]) * factor
+                factor = factor.diff()
         return result
     
     def __call__(self, argument: Expression) -> DifferentialPolynomial:

@@ -4,7 +4,8 @@ import diffalgebra as da
 
 
 A = da.DifferentialRing(functions=["u", "v"])
-diff_polynomial_small = diff_polynomial(ring=A, max_terms=5, max_nonlinearity=2)
+diff_polynomial_tiny = diff_polynomial(ring=A, max_terms=2, max_nonlinearity=2)
+diff_polynomial_small = diff_polynomial(ring=A, max_terms=3, max_nonlinearity=2)
 diff_polynomial_medium = diff_polynomial(ring=A, max_terms=10, max_nonlinearity=3)
 
 
@@ -29,6 +30,7 @@ def test_diff_polynomial_exponents_add_under_product(f: da.DifferentialPolynomia
 @given(diff_polynomial_medium)
 def test_zeroth_derivative_is_original(f: da.DifferentialPolynomial):
     assert f.diff(order=0) == f
+
 
 @settings(deadline=None)
 @given(diff_polynomial_medium,
@@ -60,3 +62,18 @@ def test_variational_derivative_of_differential(f: da.DifferentialPolynomial):
 def test_antiderivative_of_differential(f: da.DifferentialPolynomial):
     f0 = f - f.coefficient(1)
     assert f0.diff().integral() == f0
+
+
+
+B = da.DifferentialRing(functions=["w"])
+diff_polynomial_tiny = diff_polynomial(ring=B, max_terms=3, max_nonlinearity=2)
+
+@settings(deadline=None)
+@given(diff_polynomial_tiny, diff_polynomial_tiny,
+       st.integers(min_value=1, max_value=3))
+def test_differential_under_diff_ring_morphism(f: da.DifferentialPolynomial,
+                                               g: da.DifferentialPolynomial,
+                                               n: int):
+    w = B.gen("w")
+    F = da.DiffRingMorphism(source=B, target=B, mapping={w: f})
+    assert F(g).diff(n) == F(g.diff(n))

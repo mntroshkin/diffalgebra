@@ -17,6 +17,14 @@ def test_powers_under_ring_morphism():
     phi = da.RingMorphism(source=R, target=S, mapping={t: 1 + s})
     assert phi(t ** 20) == (1 + s) ** 20
 
+def test_derivative_under_diff_ring_morphism():
+    A = da.DifferentialRing(functions=["u"])
+    B = da.DifferentialRing(functions=["v"])
+    u = A.gen("u")
+    v = B.gen("v")
+    F = da.DiffRingMorphism(source=A, target=B, mapping={u: v ** 2})
+    assert F(u[1]) == 2 * v * v[1]
+
 def test_diff_morphism_implicit_base_identity():
     R = da.ConstantPolyRing(constants=["t"])
     t = R.gen("t")
@@ -29,8 +37,7 @@ def test_diff_morphism_implicit_base_identity():
 
 def test_diff_morphism_implicit_base_from_QQ():
     R = da.ConstantPolyRing(constants=["t"])
-    t = R.gen("t")
-    A = da.DifferentialRing(functions=["u"], base_ring=da.QQ)
+    A = da.DifferentialRing(functions=["u"])
     B = da.DifferentialRing(functions=["v"], base_ring=R)
     u = A.gen("u")
     v = B.gen("v")
