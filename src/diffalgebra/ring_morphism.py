@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Optional
 
 from .constant_ring import ConstantRing, ConstantGenerator, ConstantPolynomial, Constant, QQ
 from .diff_ring import DifferentialRing, FuncGenerator, DifferentialPolynomial, Expression
