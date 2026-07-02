@@ -31,7 +31,7 @@ def normalize_factors(factors: DiffFactors) -> DiffFactors:
 def normalize_terms(terms: list[DiffTerm]) -> list[DiffTerm]:
     for i, term in enumerate(terms):
         monomial, coefficient = term
-        monomial = tuple(normalize_factors(factors) for factors in monomial)
+        monomial = tuple(factors for factors in monomial)
         terms[i] = (monomial, coefficient)
     terms.sort()
     normalized_terms: list[DiffTerm] = []
@@ -49,7 +49,7 @@ def normalize_terms(terms: list[DiffTerm]) -> list[DiffTerm]:
 def multiply_terms(left: DiffTerm, right: DiffTerm) -> DiffTerm:
     monomial_left, coefficient_left = left
     monomial_right, coefficient_right = right
-    monomial = tuple(factors_left + factors_right
+    monomial = tuple(normalize_factors(factors_left + factors_right)
                      for factors_left, factors_right
                      in zip(monomial_left, monomial_right))
     coefficient = coefficient_left * coefficient_right
@@ -64,6 +64,7 @@ def diff_termwise(term: DiffTerm) -> list[DiffTerm]:
             new_factors_ith = monomial[i].copy()
             new_factors_ith[j] = (derivative_order, power - 1)
             new_factors_ith.append((derivative_order + 1, 1))
+            new_factors_ith = normalize_factors(new_factors_ith)
             new_factors = tuple(new_factors_ith if k == i else factors 
                                 for k, factors in enumerate(monomial))
             diff_terms.append((new_factors, coefficient * power))
@@ -87,6 +88,7 @@ def partial_termwise(term: DiffTerm, var_index: int, derivative_order: int) -> D
         if derivative == derivative_order:
             new_factors_ith[j] = (derivative, power - 1)
             new_coefficient = coefficient * power
+    new_factors_ith = normalize_factors(new_factors_ith)
     new_monomial = tuple(new_factors_ith if k == var_index else factors 
                         for k, factors in enumerate(monomial))
     if new_coefficient == 0:
@@ -255,11 +257,14 @@ class DifferentialPolynomial:
         return highest_derivative
     
     def delta(self, var: FuncGenerator) -> DifferentialPolynomial:
-        if var._derivative != 0:
+        if not self._ring.is_generator(var):
             raise ValueError("{var} is not a generator of {self._ring}")
         d = self._highest_derivative(var)
-        result = sum((-1) ** i * self.d(var[i]).diff(order=i) for i in range(d + 1))
-        return self._ring.promote(result)
+        result_terms: list[DiffTerm] = []
+        for i in range(d + 1):
+            summand = (-1) ** i * self.d(var[i]).diff(order=i)
+            result_terms.extend(self._ring.promote(summand)._terms)
+        return DifferentialPolynomial(ring=self._ring, terms=result_terms)
 
     def coefficient(self, monomial: Expression) -> Constant:
         monomial = self._ring.promote(monomial)

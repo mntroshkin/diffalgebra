@@ -1,7 +1,7 @@
 from typing import Optional
 
-from .constant_ring import ConstantRing, ConstantGenerator, ConstantPolynomial, Constant, QQ
-from .diff_ring import DifferentialRing, FuncGenerator, DifferentialPolynomial, Expression
+from .constant_ring import ConstantRing, ConstantGenerator, ConstantPolynomial, Constant, Term, QQ
+from .diff_ring import DifferentialRing, FuncGenerator, DifferentialPolynomial, Expression, DiffTerm
 from .exceptions import DefinitionError
 
 class RingMorphism:
@@ -33,14 +33,14 @@ class RingMorphism:
     def apply(self, expression: Constant) -> ConstantPolynomial:
         if not self._source.is_element(expression):
             raise TypeError(f"{expression} is not an element of {self._source}")
-        image_terms: list[Constant] = []
+        image_terms: list[Term] = []
         expression = self._source.promote(expression)
         for monomial, coefficient in expression._terms:
             image_term = coefficient
             for gen_image, exp in zip(self._mapping, monomial):
                 image_term *= (gen_image ** exp)
-            image_terms.append(image_term)
-        return self._target.promote(sum(image_terms))
+            image_terms.extend(self._target.promote(image_term)._terms)
+        return ConstantPolynomial(ring=self._target, terms=image_terms)
 
     def __call__(self, argument: Constant) -> ConstantPolynomial:
         return self.apply(argument)
@@ -91,7 +91,7 @@ class DiffRingMorphism:
     def apply(self, expression: Expression) -> DifferentialPolynomial:
         if not self._source.is_element(expression):
             raise TypeError(f"{expression} is not an element of {self._source}")
-        image_terms: list[Expression] = []
+        image_terms: list[DiffTerm] = []
         expression = self._source.promote(expression)
         for term in expression._terms:
             monomial, coefficient = term
@@ -99,8 +99,8 @@ class DiffRingMorphism:
             for gen_image, factors in zip(self._mapping, monomial):
                 for derivative, exp in factors:
                     image_term *= gen_image.diff(order=derivative) ** exp
-            image_terms.append(image_term)
-        return self._target.promote(sum(image_terms))
+            image_terms.extend(self._target.promote(image_term)._terms)
+        return DifferentialPolynomial(ring=self._target, terms=image_terms)
     
     def __call__(self, argument: Expression) -> DifferentialPolynomial:
         return self.apply(argument)
