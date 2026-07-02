@@ -363,7 +363,7 @@ class FuncGenerator(DifferentialPolynomial):
 
 
 class DifferentialRing:
-    _ring_name: str
+    _name: str
     _base_ring: ConstantRing
     _func_names: list[str]
     _generators: dict[str, FuncGenerator]
@@ -374,23 +374,26 @@ class DifferentialRing:
         self._func_names = []
         for func_name in functions:
             if not func_name:
-                raise SymbolNameError(f"Error defining {self._ring_name}: Empty function names are not allowed")
+                raise SymbolNameError(f"Empty function names are not allowed")
             if func_name in self._func_names:
-                raise SymbolNameError(f"Error defining {self._ring_name}: Repeating function names are not allowed")
+                raise SymbolNameError(f"Repeating function names are not allowed")
             if func_name in self._base_ring._gen_names:
-                raise SymbolNameError(f"Error defining {self._ring_name}: function name coincides with a constant name")
+                raise SymbolNameError(f"Function name coincides with a constant name")
             self._func_names.append(func_name)
 
         self._generators = {func_name: FuncGenerator(ring=self, func_name=func_name) for func_name in self._func_names}
         
-        ring_description = f"{self._base_ring._description_brief}{{{ ', '.join(self._func_names) }}}"
+        ring_definition = f"{self._base_ring._description_brief}{{{ ', '.join(self._func_names) }}}"
 
         self._name = str(ring_name)
-        self._description_brief = ring_description
-        self._description = f"{ring_name} = {ring_description}" if ring_name else ring_description
+        self._description_brief = ring_definition
+        self._description = f"{ring_name} = {ring_definition}" if ring_name else ring_definition
 
     def __str__(self) -> str:
         return self._description
+
+    def __repr__(self) -> str:
+        return f"{str(self)}: differential ring with id={id(self)}" 
 
     def is_element(self, expression) -> bool:
         if self._base_ring.is_element(expression):
@@ -407,7 +410,7 @@ class DifferentialRing:
     
     def promote(self, expression) -> DifferentialPolynomial:
         if not self.is_element(expression):
-            raise TypeError(f"Expression {expression} is not an element of {self._ring_name} and can't be promoted")
+            raise TypeError(f"Expression {expression} is not an element of {self._name} and can't be promoted")
         if isinstance(expression, DifferentialPolynomial):
             return expression
         if isinstance(expression, (int, Fraction, ConstantPolynomial)):
