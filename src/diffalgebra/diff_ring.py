@@ -28,12 +28,21 @@ def normalize_factors(factors: DiffFactors) -> DiffFactors:
             normalized_factors.append((derivative_order, total_power))
     return normalized_factors
 
+def differential_degree(term: DiffTerm) -> int:
+    monomial, coefficient = term
+    degree = 0
+    for factor in monomial:
+        for derivative, power in factor:
+            degree += derivative * power
+    return degree
+
 def normalize_terms(terms: list[DiffTerm]) -> list[DiffTerm]:
     for i, term in enumerate(terms):
         monomial, coefficient = term
         monomial = tuple(factors for factors in monomial)
         terms[i] = (monomial, coefficient)
     terms.sort()
+    terms.sort(key=differential_degree)
     normalized_terms: list[DiffTerm] = []
     i = 0
     while i < len(terms):
